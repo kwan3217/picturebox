@@ -1,7 +1,7 @@
 """
 Generate and draw path objects
 """
-from bezier import Bezier
+from .bezier import Bezier
 import numpy as np
 
 class Path:

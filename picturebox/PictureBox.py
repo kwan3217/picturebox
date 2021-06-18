@@ -131,11 +131,11 @@ class PictureBox():
         """
         if origin=='upper':
             self.M=np.array([[s, 0,self.w/2],
-                             [0, s,self.h/2],
+                             [0,-s,self.h/2],
                              [0, 0,1]])
         else:
             self.M=np.array([[s, 0,self.w/2],
-                             [0,-s,self.h/2],
+                             [0, s,self.h/2],
                              [0, 0,1]])
 
 def test_center():

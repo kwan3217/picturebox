@@ -69,7 +69,7 @@ class PictureBox():
             plt.pause(0.001)
     def text(self,x,y,s,**kwargs):
         Mx,My=self.transform(x,y)
-        txt=text.Text(Mx,self.h-My,s,figure=self.fig,**kwargs)
+        txt=text.Text(Mx,My,s,figure=self.fig,**kwargs)
         self.fig.texts.append(txt)
         if self.autodraw:
             plt.pause(0.001)
@@ -95,7 +95,7 @@ class PictureBox():
         """
         if origin=='upper':
             self.M=np.array([[1.0, 0.0,    0.0],
-                             [0.0,-1.0,-self.h],
+                             [0.0,-1.0, self.h],
                              [0.0, 0.0,    1.0]])
         else:
             self.M=np.array([[1.0, 0.0,    0.0],

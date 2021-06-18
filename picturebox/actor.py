@@ -1,43 +1,6 @@
-"""
-Life is but a walking shadow. A poor player who
-struts and frets his hour upon the stage
-and then is heard no more.
-
-An actor draws one coherent, animated graphic, such as an arrow, text, an equation,
-etc. It's performance goes through three stages:
-  * Entrance, where the actor appears on stage. It might fade in, or it might
-    draw itself in piece by piece gradually.
-  * Acting, where the actor shows what it is intended to show. It might
-    just stay in place, or it might do a dance or anything like that.
-    The action may be in several phases, explained below
-  * Exit, where the actor disappears from the stage. Once again, it might fade
-    out or it might erase itself piece by piece gradually
-
-The timing of the Actor is determined by the ts array. This array consists
-of at least four time points -- the actor enters between the first two, and
-leaves between the last two. In the simplest case, we have something like this:
-ts[0]           ts[1]                 ts[2]          ts[3]
-  |tt=0       tt=1|tt=0             tt=1|tt=0      tt=1|
-  |<----Enter---->|<--------Act-------->|<----Leave--->|
-In each stage, the appropriate stage function is called with a time parameter
-which starts at 0 and ends at 1. Since it's scaled, there is no way for the
-actor to know the conversion from time parameter to real time.
-
-A more complicated action that comes in multiple phases can be described by
-a ts that is longer than four elements:
-ts[0]           ts[1]         ts[2]          ts[3]        ts[4]          ts[5]
-  |tt=0       tt=1|tt=0     tt=1|tt=0     tt=1|tt=0     tt=1|tt=0      tt=1|
-  |<----Enter---->|<-act(..,0)->|<-act(..,1)->|<-act(..,2)->|<----Leave--->|
-In this case, the act() function is passed a phase number, and a time parameter
-that varies from 0 to 1 over each phase.
-
-To add visual interest, an actor can be drawn in two passes. This is intended
-to draw a drop shadow on the actor. The intended calling sequence is to call
-all of the actors with shadow=True, and then all of the actors with shadow=False.
-This way all the shadows are under all the actors. Actors that are already
-intricate (like small text) might not have a drop shadow.
-"""
 import numpy as np
+from typing import Callable, Iterable
+from picturebox import PictureBox
 
 shadowcolor='#a0a0c0'
 
@@ -60,7 +23,78 @@ def tc(min,sec,frame):
 
 class Actor:
     """
-    The Actor class is abstract, and has three methods intended to be overwritten:
+    Life is but a walking shadow. A poor player who
+    struts and frets his hour upon the stage
+    and then is heard no more.
+
+    An actor draws one coherent, animated graphic, such as an arrow, text, an equation,
+    etc. It's performance goes through three stages:
+      * Entrance, where the actor appears on stage. It might fade in, or it might
+        draw itself in piece by piece gradually.
+      * Acting, where the actor shows what it is intended to show. It might
+        just stay in place, or it might do a dance or anything like that.
+        The action may be in several phases, explained below
+      * Exit, where the actor disappears from the stage. Once again, it might fade
+        out or it might erase itself piece by piece gradually
+
+    The timing of the Actor is determined by the ts array. This array consists
+    of at least four time points -- the actor enters between the first two, and
+    leaves between the last two. In the simplest case, we have something like this:
+    ts[0]           ts[1]                 ts[2]          ts[3]
+      |tt=0       tt=1|tt=0             tt=1|tt=0      tt=1|
+      |<----Enter---->|<--------Act-------->|<----Leave--->|
+    In each stage, the appropriate stage function is called with a time parameter
+    which starts at 0 and ends at 1. Since it's scaled, there is no direct way for
+    the actor to know the conversion from time parameter to real time.
+
+    A more complicated action that comes in multiple phases can be described by
+    a ts that is longer than four elements:
+    ts[0]           ts[1]         ts[2]          ts[3]        ts[4]          ts[5]
+      |tt=0       tt=1|tt=0     tt=1|tt=0     tt=1|tt=0     tt=1|tt=0      tt=1|
+      |<----Enter---->|<-act(..,1)->|<-act(..,2)->|<-act(..,3)->|<----Leave--->|
+    In this case, the act() function is passed a phase number, and a time parameter
+    that varies from 0 to 1 over each phase.
+
+    To add visual interest, an actor can be drawn in two passes. This is intended
+    to draw a drop shadow on the actor. The intended calling sequence is to call
+    all of the actors with shadow=True, and then all of the actors with shadow=False.
+    This way all the shadows are under all the actors. Actors that are already
+    intricate (like small text) might not have a drop shadow.
+
+    In order to improve generality, an actor may take any number of parameters. These
+    may either be constants, or themselves functions. The mechanism to actually do this
+    is a bit weird and not something I've seen in Python before.
+
+    * Any subclass of Actor calls the superclass __init__() as usual when it is itself
+    constructed. This takes the ts array and whether or not this object has a shadow.
+    It also takes the **kwargs argument, so it can accept any number of arbitrary keyword
+    arguments. Each extra keyword passed in is examined to see if it is a callable, and
+    those that are are separated from those that aren't into two dictionaries.
+    * In the draw() method, all of the callables are called, passing them the current
+    phase and time parameters. These results are caught in a dictionary, which is
+    combined with the non-callable keyword arguments into one dictionary which is passed
+    to enter(), act(), and leave() (collectively called the acting methods) as **kwargs.
+    * In the acting methods of a concrete subclass, you define certain keyword arguments, and
+    if you want, give them default values (give a default of None if the keyword is required).
+    Also catch the **kwargs argument if you want -- typically this is used to pass such
+    things as color parameters on to the picturebox methods and then ultimately to pyplot.
+    The kwargs mechanism will then take the **kwargs parameter it is passed, separate out
+    the arguments which are explicitly named, and end up with a kwargs dictionary that
+    only has the things the acting method didn't name, suitable for passing along to
+    pyplot etc.
+
+    Therefore, you *define* the arguments you want in the acting methods but you *pass*
+    the arguments to the constructor of the actor.
+
+    To make a time-dependent argument, pass in anything that is callable and accepts two arguments,
+    phase and time parameter within the phase. I know of the following 3 things, there may be others:
+
+    * A lambda that takes two arguments
+    * A named function that takes two arguments
+    * An object of a class with a __call__() method that takes two arguments
+      (in addition to self).
+
+    The Actor class is abstract, and the three acting methods are intended to be overwritten:
       * act() MUST be overridden
       * enter() and leave() have sensible default actions: Place the actor where it is
       in phase 1, tt=0, and fade in or out as appropriate with alpha=
@@ -92,13 +126,16 @@ class Actor:
                 self.kwargs[k]=v
         self.kwargs=kwargs
         self.has_shadow=has_shadow
-    def pop_kwargs(self,kwargs,ks):
+    def _pop_kwargs(self,kwargs,ks):
         result=[]
         for k in ks:
             result.append(kwargs[k])
             del kwargs[k]
         return tuple(result)
-    def enter(self,pb,tt,alpha=1.0,shadow=False,**kwargs):
+    def _set_kwargs(self,phase,tt):
+        for k,f in self.callables.items():
+            self.kwargs[k]=f(phase,tt)
+    def _enter(self,pb,tt,alpha=1.0,shadow=False,**kwargs):
         """
         Enter the stage. Generally the entrance is short. Good things to do
         are to fade in or draw the actor piece by piece.
@@ -106,10 +143,10 @@ class Actor:
         :param alpha: 0.0 for fully transparent, 1.0 for fully opaque. If your
                       actor fades in, multiply your calculated fade factor by
                       this number.
-        Default act is to draw the final state of the entrance.
+        Default entrance is to fade in the initial state of act() at phase 0.
         """
-        self.act(pb=pb, phase=0, tt=0,alpha=alpha*tt, shadow=shadow,**kwargs)
-    def act(self,pb,phase,tt,alpha=1.0,shadow=False,**kwargs):
+        self._act(pb=pb, phase=0, tt=0,alpha=alpha*tt, shadow=shadow,**kwargs)
+    def _act(self,pb,phase,tt,alpha=1.0,shadow=False,**kwargs):
         """
         Remain on the stage. If your actor dances or does something while on stage,
         this is the time to do it. This phase may be long and drawn out.
@@ -120,7 +157,7 @@ class Actor:
         This one MUST be overridden
         """
         raise NotImplementedError
-    def leave(self,pb,tt,alpha=1.0,shadow=False,**kwargs):
+    def _leave(self,pb,tt,alpha=1.0,shadow=False,**kwargs):
         """
         Leave the stage. Generally the exit is short. Good things to do are to
         fade out or erase the actor piece by piece.
@@ -130,37 +167,43 @@ class Actor:
         Default act is to draw the final state of the action, but with alpha
         running from fully opaque to fully transparent.
         """
-        self.act(pb,phase=-1,tt=1,alpha=alpha*(1-tt),shadow=shadow,**kwargs)
-    def set_kwargs(self,phase,tt):
-        for k,f in self.callables.items():
-            self.kwargs[k]=f(phase,tt)
+        self._act(pb,phase=-1,tt=1,alpha=alpha*(1-tt),shadow=shadow,**kwargs)
     def draw(self,pb,t,shadow=False):
-        if t<self.ts[0] or t>self.ts[-1] or (shadow and not self.has_shadow):
+        """
+        Draw the actor on the stage
+
+        :param pb: PictureBox to draw on
+        :param t: Time in frames
+        :param shadow: True if this is the shadow drawing pass, false otherwise
+        :return: None, but draws the actor as a side-effect.
+        """
+        if t<self.ts[0] or t>=self.ts[-1] or (shadow and not self.has_shadow):
             return
         phase=None
-        for i_phase in range(len(self.ts)):
+        for i_phase in range(len(self.ts)-1):
             if t<self.ts[i_phase+1]:
                 phase=i_phase
                 tt = linterp(self.ts[i_phase], 0, self.ts[i_phase+1], 1, t)
                 break
         if phase is None:
-            raise ValueError("Fell off end of phase-finding loop")
+            phase=-1
+            tt=1.0
         if  phase==len(self.ts)-2:
             phase=-1
-        self.set_kwargs(phase, tt)
+        self._set_kwargs(phase, tt)
         if phase==0:
-            self.enter(pb=pb,tt=tt,shadow=shadow,**self.kwargs)
+            self._enter(pb=pb,tt=tt,shadow=shadow,**self.kwargs)
         elif phase==-1:
-            self.leave(pb=pb,tt=tt,shadow=shadow,**self.kwargs)
+            self._leave(pb=pb,tt=tt,shadow=shadow,**self.kwargs)
         else:
-            self.act(pb=pb,phase=phase,tt=tt,shadow=shadow,**self.kwargs)
+            self._act(pb=pb,phase=phase,tt=tt,shadow=shadow,**self.kwargs)
 
 class EnterActor(Actor):
     """
     This one does something special on entrance, but is basically static
     while on stage and fades out normally on exit
     """
-    def enter(self,pb,tt,alpha=1.0,shadow=False,**kwargs):
+    def _enter(self,pb,tt,alpha=1.0,shadow=False,**kwargs):
         """
         Enter the stage.
         :param tt: 0.0 at beginning of entrance, 1.0 at ending
@@ -169,11 +212,11 @@ class EnterActor(Actor):
                       this number.
         """
         raise NotImplementedError
-    def act(self,pb,phase,tt,alpha=1.0,shadow=False,**kwargs):
-        self.enter(pb,1,alpha=alpha,shadow=shadow,**kwargs)
+    def _act(self,pb,phase,tt,alpha=1.0,shadow=False,**kwargs):
+        self._enter(pb,1,alpha=alpha,shadow=shadow,**kwargs)
 
 class Axis(EnterActor):
-    def __init__(self,ts,**kwargs):
+    def __init__(self,ts,x0=None,y0=None,x1=None,y1=None,**kwargs):
         """
         Interesting kwargs:
 
@@ -188,61 +231,50 @@ class Axis(EnterActor):
         :param dy1: top data value
         :param yticks: location of ticks on vertical axis
         """
-        super().__init__(ts,**kwargs)
-    def enter(self,pb,tt,x0=None,y0=None,x1=None,y1=None,alpha=1.0,shadow=False):
+        super().__init__(ts,x0=x0,y0=y0,x1=x1,y1=y1,**kwargs)
+        self.x0=x0
+        self.y0=y0
+        self.x1=x1
+        self.y1=y1
+    def _enter(self,pb,tt,x0=None,y0=None,x1=None,y1=None,alpha=1.0,shadow=False,**kwargs):
         if shadow:
             xofs=5
             yofs=5
-            this_kwargs["color"]=shadowcolor
+            kwargs["color"]=shadowcolor
         else:
             xofs=0
             yofs=0
         if tt<2/3:
-            pb.line(x0+xofs,y1+yofs,x0+xofs,yofs+linterp(0,y1,2/3,y0,tt),alpha=alpha,**this_kwargs)
+            pb.line(x0+xofs,y1+yofs,x0+xofs,yofs+linterp(0,y1,2/3,y0,tt),alpha=alpha,**kwargs)
 #            if self.xticks is not None:
 #                this_dx1=linterp(0,self.dx0,2/3,self.dx1,tt)
 #                for xtick in self.xticks:
 #                    if this_dx1>xtick:
 #                        pass
         else:
-            pb.line(x0+xofs,y1+yofs,x0+xofs,yofs+y0,alpha=alpha,**this_kwargs)
+            pb.line(x0+xofs,y1+yofs,x0+xofs,yofs+y0,alpha=alpha,**kwargs)
         if tt>1/3:
-            pb.line(x0+xofs,y1+yofs,xofs+linterp(1/3,x0,1,x1,tt),yofs+y1,alpha=alpha,**this_kwargs)
+            pb.line(x0+xofs,y1+yofs,xofs+linterp(1/3,x0,1,x1,tt),yofs+y1,alpha=alpha,**kwargs)
 
 class TableColumn(EnterActor):
-    def __init__(self,ts,header,data,x,y0,dy,**kwargs):
-        super().__init__(ts,**kwargs)
-        self.x=x
-        self.y0=y0
-        self.header=header
-        self.data=data
-        if self.header is not None:
-            self.data=[self.header]+list(self.data)
-        self.dy=dy
-    def enter(self,pb,tt,alpha=1.0,shadow=False):
+    def _enter(self,pb,tt,shadow=False,x=None,y0=None,dy=None,header=None,data=None,**kwargs):
         #Don't draw shadows on text, it makes it hard to read
+        if header is not None:
+            data=[header]+list(data)
         if shadow:
             return
-        for i,item in enumerate(self.data):
-                tt_this=i/len(self.data)
+        for i,item in enumerate(data):
+                tt_this=i/len(data)
                 if tt_this<tt:
-                    pb.text(self.x,self.y0+self.dy*i,str(item),alpha=alpha,**self.kwargs)
+                    pb.text(x,y0+dy*i,item if type(item)==str else f"{item:,}",**kwargs)
 
 class TableGrid(Actor):
-    def __init__(self,ts,x0,x1,yt,y0,yb,xs,**kwargs):
-        super().__init__(ts,**kwargs)
-        self.x0=x0
-        self.x1=x1
-        self.yt=yt
-        self.y0=y0
-        self.yb=yb
-        self.xs=xs
-    def act(self,pb,phase,tt,alpha=1.0,shadow=False):
+    def _act(self,pb,phase,tt,alpha=1.0,shadow=False,x0=None,x1=None,yt=None,y0=None,yb=None,xs=None,**kwargs):
         if shadow:
             return
-        pb.line(self.x0,self.y0,self.x1,self.y0,alpha=alpha,**self.kwargs)
-        for x in self.xs:
-            pb.line(x,self.yt,x,self.yb,alpha=alpha,**self.kwargs)
+        pb.line(x0,y0,x1,y0,alpha=alpha,**kwargs)
+        for x in xs:
+            pb.line(x,yt,x,yb,alpha=alpha,**kwargs)
 
 class Text(EnterActor):
     def __init__(self,ts,**kwargs):
@@ -257,7 +289,7 @@ class Text(EnterActor):
         :param s: string to print
         """
         super().__init__(ts,**kwargs)
-    def enter(self,pb,tt,x=None,y=None,s=None,alpha=1.0,shadow=False,**kwargs):
+    def _enter(self,pb,tt,x=None,y=None,s=None,alpha=1.0,shadow=False,**kwargs):
         if shadow:
             xofs=5
             yofs=5
@@ -271,50 +303,28 @@ class Text(EnterActor):
             kwargs["alpha"]=tt*alpha
         pb.text(xofs+x,yofs+y,s,**kwargs)
 
-class Plot(Actor):
+class Plot(EnterActor):
     """
     Draw a this vs that line plot
     """
-    def __init__(self,ts,px0,dx0,px1,dx1,data_x,py0,dy0,py1,dy1,data_y,t0,t1,data_t,**kwargs):
-        super().__init__(ts,**kwargs)
-        self.t0=t0
-        self.t1=t1
-        self.data_t=data_t
-        self.px0=px0
-        self.px1=px1
-        self.dx0=dx0
-        self.dx1=dx1
-        self.data_x=data_x
-        self.py0=py0
-        self.py1=py1
-        self.dy0=dy0
-        self.dy1=dy1
-        self.data_y=data_y
-    def enter(self,pb,tt,alpha=1.0,shadow=False):
-        this_kwargs=self.kwargs.copy()
-        if "alpha" in this_kwargs:
-            this_kwargs["alpha"]*=alpha
-        else:
-            this_kwargs["alpha"]=alpha
+    def _enter(self,pb,tt,shadow=False,px0=None,dx0=None,px1=None,dx1=None,data_x=None,py0=None,dy0=None,py1=None,dy1=None,data_y=None,t0=None,t1=None,data_t=None,**kwargs):
         if shadow:
             xofs=5
             yofs=5
-            this_kwargs["color"]=shadowcolor
+            kwargs["color"]=shadowcolor
         else:
             xofs=0
             yofs=0
-        this_t=linterp(0,self.t0,1,self.t1,tt)
-        for i,t in enumerate(self.data_t):
+        this_t=linterp(0,t0,1,t1,tt)
+        for i,t in enumerate(data_t):
             if t>this_t:
                 break
-            newx = linterp(self.dx0, self.px0, self.dx1, self.px1, self.data_x[i])
-            newy = linterp(self.dy0, self.py0, self.dy1, self.py1, self.data_y[i])
-            if i>0 and t>=self.t0:
-                pb.line(oldx+xofs,oldy+yofs,newx+xofs,newy+yofs,**this_kwargs)
+            newx = linterp(dx0, px0, dx1, px1, data_x[i])
+            newy = linterp(dy0, py0, dy1, py1, data_y[i])
+            if i>0 and t>=t0:
+                pb.line(oldx+xofs,oldy+yofs,newx+xofs,newy+yofs,**kwargs)
             oldx=newx
             oldy=newy
-    def act(self,pb,phase,tt,alpha=1.0,shadow=False):
-        self.enter(pb,1,alpha=alpha,shadow=shadow)
 
 class Field(Actor):
     """
@@ -330,7 +340,7 @@ class Field(Actor):
         self.y=linterp(0,dy0,ny,dy1,np.arange(ny).reshape(-1,1))
         self.f=f
         self.ffade=ffade
-    def enter(self,pb,tt,alpha=1.0,shadow=False):
+    def _enter(self,pb,tt,alpha=1.0,shadow=False):
         if shadow:
             return
         fadetop=linterp(0,0,0.8,1,tt)
@@ -344,7 +354,17 @@ class Field(Actor):
         pb.image(self.px0,self.py0,self.px1,self.py1,self.image,alpha=this_fade)
 
 
-def perform(pb,actors,f0,f1,oufn_pat,shadow=True):
+def perform(pb:PictureBox,actors:Iterable[Actor],f0:int,f1:int,oufn_pat:str,shadow:bool=True):
+    """
+    Draw a collection of actors on a picture box
+
+    :param pb: PictureBox to draw on
+    :param actors: Iterable of actors
+    :param f0: Initial frame to draw
+    :param f1: Final frame to draw. In typical Python fashion, this frame number is not actually drawn.
+    :param oufn_pat: Pattern for output filenames. Will be used with the % operator with the frame number
+    :param shadow: If true, draw the shadow pass in addition to the normal pass.
+    """
     for i_frame in range(f0,f1):
         print(f0,i_frame,f1)
         pb.clear()

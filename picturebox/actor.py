@@ -1,3 +1,10 @@
+"""
+Code for drawing animations. This is inspired by 3blue1brown's manim, but only in the sense that he uses Python
+and I use Python. From what I can gather from his documentation, my concept of defining all of the actors, each with
+their own timelines, then running the render loop explicitly, is quite different from his concept.
+
+"""
+
 import numpy as np
 from typing import Callable, Iterable
 from picturebox import PictureBox

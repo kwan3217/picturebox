@@ -15,7 +15,6 @@ setup(
     author='kwan3217',
     author_email='kwan3217@gmail.com',
     description='Science data processing pipeline for the EMM-EXI instrument',
-#    long_description=open('README.md', 'r').read(),
     python_requires='>=3.8, <4',
     url='https://github.com/kwan3217/picturebox.git',
     classifiers=[
@@ -25,13 +24,6 @@ setup(
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: POSIX :: Linux",
     ],
-#    entry_points={
-#        "console_scripts":[
-#            "sdc_interface = emmexipy.datasystem.sdc_interface:main",
-#            "level2a  = bin.level2a:main",
-#            "compare_fits  = bin.compare_fits:main"
-#        ]
-#    },
     packages=['picturebox'],
-    install_requires=["matplotlib","numpy"]
+    install_requires=["matplotlib","numpy","kwanmath"]
 )

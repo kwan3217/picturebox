@@ -20,6 +20,6 @@ class Bezier:
     def b1(self,t):
         return self.b2(1-t)
     def b0(self,t):
-        return self.b0(1-t)
+        return self.b3(1-t)
     def eval(self,t):
         return tuple((((self.a)*t+self.b)*t+self.c)*t+self.r[0])

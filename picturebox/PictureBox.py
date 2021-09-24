@@ -1,11 +1,6 @@
-import pytest
-from vector import vcomp, vdecomp
-
 """
 Pixel-scaled drawing canvas, similar to the old VB canvas. This is a thin layer on top of matplotlib, so
 much of that documentation (particularly **kwargs) apply here.
-
-
 """
 
 import matplotlib.pyplot as plt
@@ -14,7 +9,10 @@ import matplotlib.patches as patches
 import matplotlib.image as image
 import matplotlib.text as text
 import matplotlib.transforms as transforms
+import matplotlib.path as path
 import numpy as np
+from kwanmath.vector import vcomp, vdecomp
+from kwanmath.bezier import arc_l90
 
 class PictureBox():
     def __init__(self,w,h,title=1,dpi=100,autodraw=True,origin='upper',**kwargs):
@@ -24,11 +22,14 @@ class PictureBox():
         self.autodraw=autodraw
         self.resetM(origin=origin)
         plt.pause(0.001)
+    @staticmethod
+    def Mtransform(M,xdata,ydata):
+        rdata = vcomp((xdata, ydata, 1))
+        Mrdata = M @ rdata
+        return vdecomp(Mrdata, m=2)
     def transform(self,xdata,ydata,transform=True):
         if transform:
-            rdata=vcomp((xdata,ydata,1))
-            Mrdata=self.M@rdata
-            return vdecomp(Mrdata,m=2)
+            return self.Mtransform(self.M,xdata,ydata)
         else:
             return xdata,ydata
     def plot(self,xdata,ydata,transform=True,**kwargs):
@@ -80,8 +81,30 @@ class PictureBox():
             self.fill(np.array([x0,x0,x1,x1]),np.array([y0,y1,y1,y0]),**kwargs)
         else:
             self.stroke(np.array([x0,x0,x1,x1,x0]),np.array([y0,y1,y1,y0,y0]),**kwargs)
-    def savepng(self,oufn):
-        self.fig.savefig(oufn)
+    def arc(self,xc:float,yc:float,r:float,theta0:float,theta1:float,**kwargs):
+        while (theta1-theta0)>90:
+            self.arc(xc,yc,r,theta0,theta0+90,**kwargs)
+            theta0+=90
+        M=self.M @ self.Mtranslate(xc,yc) @ self.Mscale(r,r) @ self.Mrotate(theta0)
+        Px,Py=vdecomp(arc_l90(np.radians(theta1-theta0)))
+        P=M @ vcomp((Px,Py,1))
+        curve=path.Path(P[0:2,:].T,np.array((path.Path.MOVETO,path.Path.CURVE4,path.Path.CURVE4,path.Path.CURVE4)))
+        self.fig.lines.append(patches.PathPatch(curve,**kwargs))
+        if self.autodraw:
+            plt.pause(0.001)
+    def bezier(self,x0:float,y0:float,x1:float,y1:float,x2:float,y2:float,x3:float,y3:float,**kwargs):
+        x=np.array((x0,x1,x2,x3))
+        y=np.array((x0,x1,x2,x3))
+        Mx,My=self.transform(x,y)
+        P=np.zeros((4,2))
+        P[:,0]=Mx
+        P[:,1]=My
+        curve=path.Path(P,np.array((path.Path.MOVETO,path.Path.CURVE4,path.Path.CURVE4,path.Path.CURVE4)))
+        self.fig.lines.append(patches.PathPatch(curve,**kwargs))
+        if self.autodraw:
+            plt.pause(0.001)
+    def savepng(self,oufn,**kwargs):
+        self.fig.savefig(oufn,**kwargs)
     def clear(self):
         self.fig.clf()
     def update(self):
@@ -101,25 +124,34 @@ class PictureBox():
             self.M=np.array([[1.0, 0.0,    0.0],
                              [0.0, 1.0,    0.0],
                              [0.0, 0.0,    1.0]])
+    @staticmethod
+    def Mscale(sx,sy):
+        return np.array([[sx, 0, 0],
+                         [ 0,sy, 0],
+                         [ 0, 0, 1]])
     def scale(self,sx,sy):
-        self.M=np.array([[sx, 0,0],
-                         [ 0,sy,0],
-                         [ 0, 0,1]]) @ self.M
+        self.M=self.Mscale(sx,sy) @ self.M
+    @staticmethod
+    def Mtranslate(tx,ty):
+        return np.array([[ 1, 0,tx],
+                         [ 0, 1,ty],
+                         [ 0, 0, 1]])
     def translate(self,tx,ty):
         """
         Move the origin by this many pixels
         :param tx: Move the origin this many units left
         :param ty: Move the origin this many units up
         """
-        self.M=np.array([[ 1, 0,tx],
-                         [ 0, 1,ty],
-                         [ 0, 0, 1]]) @ self.M
-    def rotate(self,theta):
+        self.M=self.Mtranslate(tx,ty) @ self.M
+    @staticmethod
+    def Mrotate(theta):
         c=np.cos(np.radians(theta))
         s=np.sin(np.radians(theta))
-        self.M=np.array([[ c,-s, 0],
+        return np.array([[ c,-s, 0],
                          [ s, c, 0],
-                         [ 0, 0, 1]]) @ self.M
+                         [ 0, 0, 1]])
+    def rotate(self,theta):
+        self.M= self.Mrotate(theta)@ self.M
     def center(self,s,origin='upper'):
         """
         Set the matrix such that the origin is at the center
@@ -138,7 +170,7 @@ class PictureBox():
                              [0, s,self.h/2],
                              [0, 0,1]])
 
-def test_center():
+def exercise_center():
     pb=PictureBox(1280,720)
     pb.center(10)
     xo,yo=pb.transform(0,0)
@@ -152,8 +184,13 @@ def test_center():
     assert x2==xo+10
     assert y2==yo-10
 
+def exercise_arc():
+    pb=PictureBox(1280,720)
+    pb.arc(640,360,100,45,315,linewidth=10,fill=False)
+    pass
+
 
 if __name__=="__main__":
-    test_center()
+    exercise_arc()
 
 

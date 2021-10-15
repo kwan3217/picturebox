@@ -8,12 +8,9 @@ their own timelines, then running the render loop explicitly, is quite different
 import numpy as np
 from typing import Callable, Iterable
 from picturebox import PictureBox
+from kwanmath.interp import linterp
 
 shadowcolor='#a0a0c0'
-
-def linterp(x0,y0,x1,y1,x):
-    t=(x-x0)/(x1-x0)
-    return (1-t)*y0+t*y1
 
 def smooth(x):
     return -2*x**3+3*x**2
@@ -310,11 +307,85 @@ class Text(EnterActor):
             kwargs["alpha"]=tt*alpha
         pb.text(xofs+x,yofs+y,s,**kwargs)
 
+class Function(EnterActor):
+    """
+    Draw a function
+    """
+    def _enter(self,pb:PictureBox,tt,shadow=False,px0=None,dx0=None,px1=None,dx1=None,py0=None,dy0=None,py1=None,dy1=None,f:callable=None,**kwargs):
+        """
+        Do the main action for a plot -- draw it in gradually.
+
+        :param pb: Picture box to draw upon
+        :param tt: Time parameter
+        :param shadow: True if this is a shadow, false otherwise
+        :param px0: Pixel x0 - location where left end will be drawn
+        :param dx0: Data x0 - independent value to draw at x0
+        :param px1: Pixel x1 - location where right end will be drawn
+        :param dx1: Data x1 - independent value to draw at x1
+        :param py0: Pixel y0 - location where lowest dependent value will be drawn
+        :param dy0: Data y0 - dependent value to draw at y0, will be min(f) if not passed.
+        :param py1: Pixel y1 - location where highest dependent value will be drawn
+        :param dy1: Data y1 - dependent value to draw at y1, will be max(f) if not passed.
+        :param f: function to calculate dependent values from independent values,
+                   will be passed phase, time parameter in this phase, and independent values.
+                   Must be passed inside a 1-element tuple, must be able to take a numpy 1d array
+        :param kwargs: Passed to stroke
+
+        Since f is a callable, it is treated as keyframable and therefore called with phase and tt outside. This
+        function must therefore itself return a function which can be called on a 1D array of independent variables.
+        For instance:
+            Function(f=lambda phase,tt:lambda x:x**2)
+        """
+        if shadow:
+            xofs=5
+            yofs=5
+            kwargs["color"]=shadowcolor
+        else:
+            xofs=0
+            yofs=0
+        if dy0 is None or dy1 is None:
+            px=np.arange(px0,px1)
+            x=linterp(px0,dx0,px1,dx1,px)
+            y=f(x)
+            if dy0 is None:
+                dy0=np.min(y)
+            if dy1 is None:
+                dy1=np.max(y)
+        frame_px=linterp(0,px0,1,px1,tt)
+        if frame_px==px0:
+            return
+        px=np.arange(px0,frame_px)
+        x=linterp(px0,dx0,px1,dx1,px)
+        y=f(x)
+        py=linterp(dy0,py0,dy1,py1,y)
+        pb.stroke(px,py,**kwargs)
+
 class Plot(EnterActor):
     """
     Draw a this vs that line plot
     """
     def _enter(self,pb,tt,shadow=False,px0=None,dx0=None,px1=None,dx1=None,data_x=None,py0=None,dy0=None,py1=None,dy1=None,data_y=None,t0=None,t1=None,data_t=None,**kwargs):
+        """
+        Do the main action for a plot -- draw it in gradually.
+        :param pb: Picture box to draw upon
+        :param tt: Time parameter
+        :param shadow: True if this is a shadow, false otherwise
+        :param px0:
+        :param dx0:
+        :param px1:
+        :param dx1:
+        :param data_x:
+        :param py0:
+        :param dy0:
+        :param py1:
+        :param dy1:
+        :param data_y:
+        :param t0:
+        :param t1:
+        :param data_t:
+        :param kwargs:
+        :return:
+        """
         if shadow:
             xofs=5
             yofs=5

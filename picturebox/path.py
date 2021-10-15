@@ -1,7 +1,7 @@
 """
 Generate and draw path objects
 """
-from .bezier import Bezier
+from kwanmath.bezier import bezier
 import numpy as np
 
 class Path:
@@ -20,10 +20,10 @@ class Path:
         self.ym2=y2
         x0=self.xdata[-1]
         y0=self.ydata[-1]
-        B = Bezier(((x0,y0), (x1, y1), (x2, y2), (x3, y3)))
+        P=np.array(((x0,x1,x2,x3), (y0,y1,y2,y3)))
         for i in range(1, 101):
             t = i / 100
-            p = B.eval(t)
+            p = bezier(P,t)
             self.xdata.append(p[0])
             self.ydata.append(p[1])
     def smoothcurveto(self,x2,y2,x3,y3):

@@ -281,19 +281,19 @@ class TableGrid(Actor):
             pb.line(x,yt,x,yb,alpha=alpha,**kwargs)
 
 class Text(EnterActor):
-    def __init__(self,ts,**kwargs):
+    def _enter(self,pb,tt,x=None,y=None,s=None,alpha=1.0,shadow=False,**kwargs):
         """
 
-        :param ts:
-        :param kwargs:
-
-        Special kwargs
+        :param pb:
+        :param tt:
         :param x: x coordinate of text reference point
         :param y: y coordinate of text reference point
         :param s: string to print
+        :param alpha:
+        :param shadow:
+        :param kwargs:
+        :return:
         """
-        super().__init__(ts,**kwargs)
-    def _enter(self,pb,tt,x=None,y=None,s=None,alpha=1.0,shadow=False,**kwargs):
         if shadow:
             xofs=5
             yofs=5

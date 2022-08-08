@@ -21,6 +21,7 @@ class PictureBox():
         self.fig=plt.figure(title,figsize=(w/dpi,h/dpi),dpi=dpi,**kwargs)
         self.autodraw=autodraw
         self.resetM(origin=origin)
+        self.zorder=0
         plt.pause(0.001)
     def __enter__(self):
         return self
@@ -38,7 +39,8 @@ class PictureBox():
             return xdata,ydata
     def plot(self,xdata,ydata,transform=True,**kwargs):
         Mxdata,Mydata=self.transform(xdata,ydata,transform=transform)
-        plt.plot(Mxdata,Mydata,**kwargs)
+        plt.plot(Mxdata,Mydata,zorder=self.zorder,**kwargs)
+        self.zorder+=1
         if self.autodraw:
             plt.pause(0.001)
     def stroke(self,xdata,ydata,transform=True,**kwargs):
@@ -50,7 +52,8 @@ class PictureBox():
         :return: None
         """
         Mxdata,Mydata=self.transform(xdata,ydata,transform=transform)
-        self.fig.lines.append(lines.Line2D(Mxdata, Mydata, **kwargs))
+        self.fig.lines.append(lines.Line2D(Mxdata, Mydata,zorder=self.zorder, **kwargs))
+        self.zorder+=1
         if self.autodraw:
             plt.pause(0.001)
     def fill(self,xdata,ydata,transform=True,**kwargs):
@@ -61,7 +64,8 @@ class PictureBox():
         :return: None
         """
         Mxdata,Mydata=self.transform(xdata,ydata,transform=transform)
-        self.fig.lines.append(patches.Polygon(np.array([Mxdata, Mydata]).T, figure=self.fig, **kwargs))
+        self.fig.lines.append(patches.Polygon(np.array([Mxdata, Mydata]).T, figure=self.fig, zorder=self.zorder,**kwargs))
+        self.zorder+=1
         if self.autodraw:
             plt.pause(0.001)
     def image(self,x0,y0,x1,y1,imdata,transform=True,**kwargs):
@@ -110,6 +114,7 @@ class PictureBox():
     def savepng(self,oufn,**kwargs):
         self.fig.savefig(oufn,**kwargs)
     def clear(self):
+        self.zorder=0
         self.fig.clf()
     def update(self):
         plt.pause(0.001)

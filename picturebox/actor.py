@@ -5,8 +5,15 @@ their own timelines, then running the render loop explicitly, is quite different
 
 """
 
+#Python standard libraries
+import os
+import pathlib
+from typing import Callable, Iterable, Tuple
+
+#Other people's libraries
 import numpy as np
-from typing import Callable, Iterable
+
+#My libraries
 from picturebox import PictureBox
 from kwanmath.interp import linterp
 
@@ -14,6 +21,109 @@ shadowcolor='#a0a0c0'
 
 def smooth(x):
     return -2*x**3+3*x**2
+
+
+def phase_t(ts,f)->Tuple[int,float]:
+    """
+
+    :param ts: Array of phase frame numbers
+    :param f: frame number
+    :return: tuple of phase and time parameter
+    """
+    if f<ts[0]:
+        return 0, linterp(ts[0], 0, ts[1], 1, f)
+    for i_t,t in enumerate(ts[:-2]):
+        if f<ts[i_t+1]:
+            return i_t,linterp(ts[i_t],0,ts[i_t+1],1,f)
+    return len(ts)-1,linterp(ts[-2],0,ts[-1],1,f)
+
+
+def invert_phase_t(ts, phase, tt) -> float:
+    """
+
+    :param ts: Array of phase frame numbers
+    :param phase: phase
+    :param tt: time
+    :return: frame number
+    """
+    if phase == -1:
+        return linterp(0, ts[-2], 1, ts[-1], tt)
+    return linterp(0, ts[phase], 1, ts[phase + 1], tt)
+
+
+def rescale_t(ts_a,ts_b)->Callable[[int,float],Tuple[int,float]]:
+    """
+    Given two time scales, return a function that returns the phase and time
+    of time scale b, given a phase and time on time scale a
+    :param ts_a:
+    :param ts_b:
+    :return:
+    """
+    def inner_t(phase:int,tt:float)->float:
+        f=invert_phase_t(ts_a,phase,tt)
+        return phase_t(ts_b,f)
+    return inner_t
+
+
+def linterp_different_scale(ts_l:list[float],ts_f:list[float],y0:float,y1:float,bound=False,extrap=True)->Callable[[int,float],float]:
+    """
+    Return a function which does a linterp on foreign scale, given a phase and time on local scale
+
+    :param ts_l: local scale
+    :param ts_f: foreign scale
+    :param y0: value to return if foreign tt==0.0
+    :param y1: value to return if foreign tt==1.0
+    :return: Function usable as a phase,tt function
+
+    For example: A cart fades in from 0 to 10, rolls from 10 to 90, and fades out from 90 to 100. While it rolls,
+      it starts at 0 and moves to 1000. A vector fades in from 50 to 60 and out at 90 to 100, but must have a length
+      equal to the cart position. Do this:
+
+    ts_cart=[0,10,90,100]
+    ts_vec=[50,60,90,100]
+    self.actors.append(Vector(...,x0=linterp_different_scales(ts_vec,ts_cart,0,1000)))
+
+    """
+    def inner(phase_l:int,tt_l:float)->float:
+        f=invert_phase_t(ts_l, phase_l, tt_l)
+        if extrap:
+            phase_f=1
+            tt_f=linterp(ts_f[1],0,ts_f[2],1,f)
+        else:
+            phase_f,tt_f=phase_t(ts_f,f)
+        if bound:
+            if phase_f<1:
+                return y0
+            if phase_f>1:
+                return y1
+        return linterp(0,y0,1,y1,tt_f)
+    return inner
+
+
+def f_different_scale(ts_l:list[float],ts_f:list[float],f:Callable[[int,float],float],bound=True,extrap=True)->Callable[[int,float],float]:
+    """
+    Return a function which acts like a phase-time function on a foreign scale, given a phase and time on a local scale
+
+    :param ts_l: local scale
+    :param ts_f: foreign scale
+    :param f: function to call on foreign scale
+    :return: function usable as a phase,tt function
+    """
+    def inner(phase_l:int,tt_l:float)->float:
+        ff=invert_phase_t(ts_l,phase_l,tt_l)
+        if extrap:
+            phase_f=1
+            tt_f=linterp(ts_f[1],0,ts_f[2],1,ff)
+        else:
+            phase_f,tt_f=phase_t(ts_f,ff)
+        if bound:
+            if phase_f<1:
+                tt_f=0
+            if phase_f>1:
+                tt_f=1
+        return f(phase_f,tt_f)
+    return inner
+
 
 def tc(min,sec,frame):
     """
@@ -110,7 +220,7 @@ class Actor:
     this internal alpha by the alpha= parameter, and pass that to the picture
     box commands. If alpha is exactly 0.0, you can optimize by doing an early return.
     """
-    def __init__(self,ts,has_shadow=True,**kwargs):
+    def __init__(self,ts=None,has_shadow=True,**kwargs):
         """
         Create an actor
         :param ts: Action time points
@@ -181,19 +291,23 @@ class Actor:
         :param shadow: True if this is the shadow drawing pass, false otherwise
         :return: None, but draws the actor as a side-effect.
         """
-        if t<self.ts[0] or t>=self.ts[-1] or (shadow and not self.has_shadow):
-            return
-        phase=None
-        for i_phase in range(len(self.ts)-1):
-            if t<self.ts[i_phase+1]:
-                phase=i_phase
-                tt = linterp(self.ts[i_phase], 0, self.ts[i_phase+1], 1, t)
-                break
-        if phase is None:
-            phase=-1
-            tt=1.0
-        if  phase==len(self.ts)-2:
-            phase=-1
+        if self.ts is not None:
+            if t<self.ts[0] or t>=self.ts[-1] or (shadow and not self.has_shadow):
+                return
+            phase=None
+            for i_phase in range(len(self.ts)-1):
+                if t<self.ts[i_phase+1]:
+                    phase=i_phase
+                    tt = linterp(self.ts[i_phase], 0, self.ts[i_phase+1], 1, t)
+                    break
+            if phase is None:
+                phase=-1
+                tt=1.0
+            if  phase==len(self.ts)-2:
+                phase=-1
+        else:
+            phase=1
+            tt=0
         self._set_kwargs(phase, tt)
         if phase==0:
             self._enter(pb=pb,tt=tt,shadow=shadow,**self.kwargs)
@@ -455,3 +569,41 @@ def perform(pb:PictureBox,actors:Iterable[Actor],f0:int,f1:int,oufn_pat:str,shad
         if True:
             pb.savepng(oufn_pat%i_frame)
     print("Done")
+
+
+class Stage:
+    w0 = 1280
+    h0 = 720
+
+    def __init__(self,w=None,h=None,f0=0,f1=100,shadow=False,facecolor='#e0e0ff',name=None):
+        self.actors=[]
+        self.w=Stage.w0 if w is None else w
+        self.h=Stage.h0 if h is None else h
+        self.f0=f0
+        self.f1=f1
+        self.shadow=shadow
+        self.facecolor=facecolor
+        if name is None:
+            self.name=type(self).__name__
+        else:
+            self.name=name
+    def setup(self,pb:PictureBox):
+        pass
+    def teardown(self,pb:PictureBox):
+        pass
+    def perform(self,f0=None,f1=None):
+        if f0 is None:
+            f0=self.f0
+        if f1 is None:
+            f1=self.f1
+        digits=len(str(self.f1))
+        #From https://stackoverflow.com/a/606998
+        import __main__
+        oupath=f"render/images/{os.path.basename(__main__.__file__)[:-3]}/{self.name}/"
+        pathlib.Path(oupath).mkdir(parents=True,exist_ok=True)
+        oufn_pat=oupath+f"{self.name}%0{digits}d.png"
+        with PictureBox(self.w,self.h,title=self.name,facecolor=self.facecolor) as pb:
+            self.setup(pb)
+            perform(pb,self.actors,f0,f1,shadow=self.shadow,oufn_pat=oufn_pat)
+            self.teardown(pb)
+

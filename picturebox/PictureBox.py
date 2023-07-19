@@ -15,7 +15,9 @@ from kwanmath.vector import vcomp, vdecomp
 from kwanmath.bezier import arc_l90
 
 class PictureBox():
-    def __init__(self,w,h,title=1,dpi=100,autodraw=True,origin='upper',**kwargs):
+    def __init__(self,w,h,title=1,dpi=100,autodraw=True,origin='upper',onscreen=True,**kwargs):
+        if not onscreen:
+            matplotlib.use('Agg')
         self.w=w
         self.h=h
         self.fig=plt.figure(title,figsize=(w/dpi,h/dpi),dpi=dpi,**kwargs)
